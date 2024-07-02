@@ -65,7 +65,6 @@ func fetch(ctx context.Context, ch chan<- result, url string, api string) {
 	}
 	defer resp.Body.Close()
 
-	// Log the raw response for debugging
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		ch <- result{api: api, err: err}
