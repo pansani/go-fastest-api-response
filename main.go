@@ -16,11 +16,25 @@ const (
 	timeout      = 1 * time.Second
 )
 
-type Address struct {
+type BrazilAPIAddress struct {
 	Street       string `json:"street"`
 	Neighborhood string `json:"neighborhood"`
 	City         string `json:"city"`
 	State        string `json:"state"`
+}
+
+type ViaCepAddress struct {
+	Street       string `json:"logradouro"`
+	Neighborhood string `json:"bairro"`
+	City         string `json:"localidade"`
+	State        string `json:"uf"`
+}
+
+type Address struct {
+	Street       string
+	Neighborhood string
+	City         string
+	State        string
 }
 
 func main() {
@@ -29,8 +43,8 @@ func main() {
 
 	ch := make(chan result)
 
-	go fetch(ctx, ch, brazilAPIURL+cep, "BrasilAPI")
-	go fetch(ctx, ch, viaCepURL+cep+"/json/", "ViaCEP")
+	go fetchBrazilAPI(ctx, ch, brazilAPIURL+cep, "BrasilAPI")
+	go fetchViaCep(ctx, ch, viaCepURL+cep+"/json/", "ViaCEP")
 
 	select {
 	case res := <-ch:
@@ -50,7 +64,7 @@ type result struct {
 	err     error
 }
 
-func fetch(ctx context.Context, ch chan<- result, url string, api string) {
+func fetchBrazilAPI(ctx context.Context, ch chan<- result, url string, api string) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		ch <- result{api: api, err: err}
@@ -71,10 +85,54 @@ func fetch(ctx context.Context, ch chan<- result, url string, api string) {
 		return
 	}
 
-	var address Address
-	if err := json.Unmarshal(body, &address); err != nil {
+	var brazilAPIAddress BrazilAPIAddress
+	if err := json.Unmarshal(body, &brazilAPIAddress); err != nil {
 		ch <- result{api: api, err: err}
 		return
+	}
+
+	address := Address{
+		Street:       brazilAPIAddress.Street,
+		Neighborhood: brazilAPIAddress.Neighborhood,
+		City:         brazilAPIAddress.City,
+		State:        brazilAPIAddress.State,
+	}
+
+	ch <- result{api: api, address: address, err: nil}
+}
+
+func fetchViaCep(ctx context.Context, ch chan<- result, url string, api string) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		ch <- result{api: api, err: err}
+		return
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		ch <- result{api: api, err: err}
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		ch <- result{api: api, err: err}
+		return
+	}
+
+	var viaCepAddress ViaCepAddress
+	if err := json.Unmarshal(body, &viaCepAddress); err != nil {
+		ch <- result{api: api, err: err}
+		return
+	}
+
+	address := Address{
+		Street:       viaCepAddress.Street,
+		Neighborhood: viaCepAddress.Neighborhood,
+		City:         viaCepAddress.City,
+		State:        viaCepAddress.State,
 	}
 
 	ch <- result{api: api, address: address, err: nil}
