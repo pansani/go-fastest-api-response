@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -16,10 +17,10 @@ const (
 )
 
 type Address struct {
-	Street       string `json:"logradouro"`
-	Neighborhood string `json:"bairro"`
-	City         string `json:"localidade"`
-	State        string `json:"uf"`
+	Street       string `json:"street"`
+	Neighborhood string `json:"neighborhood"`
+	City         string `json:"city"`
+	State        string `json:"state"`
 }
 
 func main() {
@@ -64,8 +65,15 @@ func fetch(ctx context.Context, ch chan<- result, url string, api string) {
 	}
 	defer resp.Body.Close()
 
+	// Log the raw response for debugging
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		ch <- result{api: api, err: err}
+		return
+	}
+
 	var address Address
-	if err := json.NewDecoder(resp.Body).Decode(&address); err != nil {
+	if err := json.Unmarshal(body, &address); err != nil {
 		ch <- result{api: api, err: err}
 		return
 	}
